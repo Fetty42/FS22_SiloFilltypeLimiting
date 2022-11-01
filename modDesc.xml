@@ -1,0 +1,37 @@
+<modDesc descVersion="71">
+	<author>Fetty</author>
+	<version>1.0.0.0</version>
+	<title>
+        <en>Silo Count Fill Type Limit</en>
+		<de>Silo Anzahl Fülltyp Limit</de>
+    </title>
+    <description>
+		<de><![CDATA[Um das Spiel realistischer zu gestalten, wird durch diesen Mod die Anzahl der verschiedenen Fülltypen, die gleichzeitig in einem Silo gelagert werden können, begrenzt.
+Durch die Verwendung von Siloerweiterungen wird diese Anzahl erhöht.]]></de>
+        <en><![CDATA[To make the game more realistic, this mod limits the number of different fill types that can be stored in a silo at the same time.
+By using silo extensions, this number is increased.]]></en>
+        <fr><![CDATA[Afin de rendre le jeu plus réaliste, ce mod limite le nombre de types de remplissage différents pouvant être stockés simultanément dans un silo.
+L'utilisation d'extensions de silo permet d'augmenter ce nombre.]]></fr>
+    </description>
+
+	<iconFilename>icon.dds</iconFilename>
+	<multiplayer supported="true" />
+	<extraSourceFiles>
+		<sourceFile filename="SiloCountFillTypeLimit.lua" />
+	</extraSourceFiles>    
+
+	<l10n>
+		<text name="SiloCountFillTypeLimit_UnloadingNotAllowed">
+			<de>Zu viele Silozellen sind bereits belegt (%s/%s) --> Entladen ist nicht erlaubt</de>
+			<en>Too many storage slots are already in use (%s/%s) --> Unloading is not allowed</en>
+		</text>
+		<text name="SiloCountFillTypeLimit_ExistingFiltype">
+			<de>Vorhandener Fülltyp, %s/%s Zellen in Benuzung</de>
+			<en>Existing filetype, %s/%s slots in use</en>
+		</text>
+		<text name="SiloCountFillTypeLimit_NewFilltype">
+			<de>Neuer Fülltyp, %s/%s Zellen in Benutzung</de>
+			<en>New filetype, %s/%s slots in use</en>
+		</text>
+	</l10n>
+</modDesc>
