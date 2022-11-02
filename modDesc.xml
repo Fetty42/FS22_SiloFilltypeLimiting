@@ -1,9 +1,10 @@
 <modDesc descVersion="71">
-	<author>Fetty</author>
+	<author>Fetty42</author>
 	<version>1.0.0.0</version>
 	<title>
-        <en>Silo Count Fill Type Limit</en>
 		<de>Silo Anzahl Fülltyp Limit</de>
+        <en>Silo Count Fill Type Limit</en>
+		<fr>Nombre de silos Type de remplissage Limite</fr>
 		<ru>Ограничение типов культур в бункерах</ru>
     </title>
     <description>
