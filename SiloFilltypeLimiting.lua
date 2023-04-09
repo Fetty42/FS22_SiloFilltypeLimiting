@@ -1,6 +1,6 @@
 -- Author: Fetty42
--- Date: 23.04.2022
--- Version: 1.0.0.0
+-- Date: 09.04.2023
+-- Version: 1.0.1.0
 
 local dbPrintfOn = false
 
@@ -19,7 +19,7 @@ end
 StorageLimit = {}; -- Class
 
 StorageLimit.timeOfLastNotification = {}
-StorageLimit.maxStoredFillTypesDefault = 4
+StorageLimit.maxStoredFillTypesDefault = 5
 StorageLimit.knownStorageStations = {}	-- StationName = maxStoredFillTypes
 StorageLimit.initDone = false
 
@@ -54,7 +54,7 @@ function StorageLimit:getAllStorageStations()
 	for _, station in pairs(g_currentMission.storageSystem.unloadingStations) do
 	
 		local placeable = station.owningPlaceable
-		dbPrintf("  - Station: getName=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s", 
+		dbPrintf("  - Station: getName=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s",
 			placeable:getName(), tostring(placeable.typeName), tostring(placeable.storeItem.categoryName), tostring(station.isSellingPoint), station.hasStoragePerFarm, placeable.ownerFarmId)
 
 		if StorageLimit:isStationRelevant(station) then
@@ -68,7 +68,7 @@ function StorageLimit:isStationRelevant(station)
 	-- dbPrintf("call StorageLimit:isStationRelevant()");
 	local placeable = station.owningPlaceable
 	
-	-- dbPrintf("  - Station: getName=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s", 
+	-- dbPrintf("  - Station: getName=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s",
 	-- placeable:getName(), tostring(placeable.typeName), tostring(placeable.storeItem.categoryName), tostring(station.isSellingPoint), station.hasStoragePerFarm, placeable.ownerFarmId)
 
 	-- ~= PRODUCTIONPOINTS, ANIMALPENS
@@ -78,7 +78,7 @@ function StorageLimit:isStationRelevant(station)
 	-- getName=Medium Petrol Tank | typeName=silo | categoryName=DIESELTANKS | isSellingPoint=nil | hasStoragePerFarm=false | ownerFarmId=1 	--> is own relevant StorageStation
 	-- getName=Liquidmanure Tank | typeName=silo | categoryName=SILOS | isSellingPoint=nil | hasStoragePerFarm=false | ownerFarmId=1 			--> is own relevant StorageStation
 
-	if (station.isSellingPoint == nil or station.isSellingPoint == false) and placeable.ownerFarmId == g_currentMission:getFarmId()  
+	if (station.isSellingPoint == nil or station.isSellingPoint == false) and placeable.ownerFarmId == g_currentMission:getFarmId()
 		and (placeable.storeItem.categoryName == "SILOS" or placeable.storeItem.categoryName == "STORAGES") and placeable.typeName == "silo" then
 		-- placeable.storeItem.categoryName ~= "ANIMALPENS" and placeable.storeItem.categoryName ~= "PRODUCTIONPOINTS"
 		-- dbPrintf("    --> is own relevant StorageStation")
@@ -100,18 +100,19 @@ end
 
 function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillTypeIndex, farmId)
 	-- dbPrintf("call StorageLimit:unloadingStation_getFreeCapacity")
+	-- dbPrintf("call StorageLimit:unloadingStation_getFreeCapacity: station=%s | fillTypeIndex=%s | farmId=%s", station, fillTypeIndex, farmId)
 
-	-- don't handle all unloading station types
-	if not StorageLimit:isStationRelevant(station) then
+	-- don't handle
+	if not StorageLimit:isStationRelevant(station) or fillTypeIndex == nil or farmId == nil then
 		return superFunc(station, fillTypeIndex, farmId)
 	end
 
 	-- info output, but not every call
 	local withOutput = false
-	if StorageLimit.timeOfLastNotification[farmId] == nil 
-	or StorageLimit.timeOfLastNotification[farmId][station] == nil 
+	if StorageLimit.timeOfLastNotification[farmId] == nil
+	or StorageLimit.timeOfLastNotification[farmId][station] == nil
 	or StorageLimit.timeOfLastNotification[farmId][station][fillTypeIndex] == nil
-	or g_currentMission.environment.dayTime/(1000*60) > StorageLimit.timeOfLastNotification[farmId][station][fillTypeIndex] + 6 
+	or g_currentMission.environment.dayTime/(1000*60) > StorageLimit.timeOfLastNotification[farmId][station][fillTypeIndex] + 6
 	then
 		-- dbPrintf(string.format("  dayTime=%s", tostring(g_currentMission.environment.dayTime/(1000*60))))
 		if StorageLimit.timeOfLastNotification[farmId] == nil then
@@ -127,7 +128,7 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 
 	if withOutput then
 		local fillTypeName = g_fillTypeManager:getFillTypeByIndex(fillTypeIndex).name
-		dbPrintf("call2 StorageLimit.unloadingStation_getFreeCapacity: station=%s | fillTypeIndex=%s | fillTypeName=%s | farmId=%s", 
+		dbPrintf("call2 StorageLimit.unloadingStation_getFreeCapacity: station=%s | fillTypeIndex=%s | fillTypeName=%s | farmId=%s",
 			tostring(station), tostring(fillTypeIndex), tostring(fillTypeName), tostring(farmId))
 		dbPrintf("  Station: getName=%s | typeName=%s | categoryName=%s", station.owningPlaceable:getName(), station.owningPlaceable.typeName, station.owningPlaceable.storeItem.categoryName)
 	end
@@ -151,7 +152,7 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
         if farmId == nil or station:hasFarmAccessToStorage(farmId, targetStorage) then
             countTargetStorages = countTargetStorages + 1
 
-			-- current targetStorage debug output 
+			-- current targetStorage debug output
 			-- if withOutput then
 			-- 	print("")
 			-- 	print("TargetStorage: " .. countTargetStorages)
@@ -178,7 +179,7 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 
 	local notificationText = "";
 	local callSuperFunction = true
-	if isFilltypeAlreadyInUse  then 
+	if isFilltypeAlreadyInUse  then
 		-- The storage space for this fill type is already in use
 		if countStoredFillTypes <= maxStoredFillTypesOverAll then
 			if withOutput then
@@ -198,7 +199,7 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 		notificationText = string.format(g_i18n:getText("SiloFilltypeLimiting_UnloadingNotAllowed"), countStoredFillTypes, maxStoredFillTypesOverAll)
 		callSuperFunction = false
 	end
-    
+
 	-- info output, but not every call
 	if withOutput and  notificationText ~= "" then
 		dbPrintf("  StorageLimit: countTargetStorages=%s | maxStoredFillTypesOverAll=%s | Msg=%s", countTargetStorages, maxStoredFillTypesOverAll, notificationText)
