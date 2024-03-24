@@ -1,6 +1,6 @@
 -- Author: Fetty42
--- Date: 09.04.2023
--- Version: 1.0.1.0
+-- Date: 24.03.2024
+-- Version: 1.1.0.0
 
 local dbPrintfOn = false
 
@@ -19,9 +19,14 @@ end
 StorageLimit = {}; -- Class
 
 StorageLimit.timeOfLastNotification = {}
-StorageLimit.maxStoredFillTypesDefault = 5
+StorageLimit.maxStoredFillTypesDefault = 4
+StorageLimit.maxStoredFillTypesExtensionDefault = 2
 StorageLimit.knownStorageStations = {}	-- StationName = maxStoredFillTypes
 StorageLimit.initDone = false
+
+StorageLimit.directory = g_currentModDirectory
+StorageLimit.modName = g_currentModName
+StorageLimit.confDirectory = getUserProfileAppPath().. "modSettings/"
 
 
 addModEventListener(StorageLimit)
@@ -29,7 +34,13 @@ addModEventListener(StorageLimit)
 function StorageLimit:loadMap(name)
 	dbPrintf("call StorageLimit:loadMap");
 	UnloadingStation.getFreeCapacity = Utils.overwrittenFunction(UnloadingStation.getFreeCapacity, StorageLimit.unloadingStation_getFreeCapacity)	
-end;
+
+	-- Save Configuration when saving savegame
+	FSBaseMission.saveSavegame = Utils.appendedFunction(FSBaseMission.saveSavegame, StorageLimit.writeConfig)
+
+	--load settings:
+	StorageLimit:readConfig();
+end
 
 
 -- function StorageLimit:postLoadMap()
@@ -54,13 +65,35 @@ function StorageLimit:getAllStorageStations()
 	for _, station in pairs(g_currentMission.storageSystem.unloadingStations) do
 	
 		local placeable = station.owningPlaceable
-		dbPrintf("  - Station: getName=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s",
-			placeable:getName(), tostring(placeable.typeName), tostring(placeable.storeItem.categoryName), tostring(station.isSellingPoint), station.hasStoragePerFarm, placeable.ownerFarmId)
+		local stationItentifier = StorageLimit:getStationItentifier(station)
+		dbPrintf("  - Station: Name=%s | typeName=%s | categoryName=%s | isSellingPoint=%s | hasStoragePerFarm=%s | ownerFarmId=%s",
+		stationItentifier, tostring(placeable.typeName), tostring(placeable.storeItem.categoryName), tostring(station.isSellingPoint), station.hasStoragePerFarm, placeable.ownerFarmId)
 
 		if StorageLimit:isStationRelevant(station) then
 			dbPrintf("    --> is relevant StorageStation")
+
+			if StorageLimit.knownStorageStations[stationItentifier] == nil then
+				dbPrintf("StorageLimit: New undefined storage station '%s'. Set max storage slots to %s (default)", stationItentifier, StorageLimit.maxStoredFillTypesDefault)
+				StorageLimit.knownStorageStations[stationItentifier] = -1
+			end
 		end
 	end
+
+	-- Try to get more information for the owned storage extensions (e.g. mod name)
+	dbPrintf("")
+	dbPrintf("  Try to get more information for the owned storage extensions (e.g. mod name)")
+	for _, station in pairs(g_currentMission.storageSystem.storageExtensions) do
+        dbPrintf("    storageSystem.storageExtensions: id=%s | capacity=%s", station.id, station.capacity)
+	end
+	-- for _, station in pairs(g_currentMission.storageSystem.extendableLoadingStations) do
+    --     print(tostring(station))
+	-- end
+	-- for _, station in pairs(g_currentMission.storageSystem.extendableUnloadingStations) do
+    --     print(tostring(station))
+	-- end
+	-- for _, station in pairs(g_currentMission.storageSystem.storages) do
+    --     print(tostring(station))
+	-- end
 end
 
 
@@ -134,13 +167,23 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 	end
 
 	local maxStoredFillTypes = StorageLimit.maxStoredFillTypesDefault
-	if StorageLimit.knownStorageStations[station.owningPlaceable:getName()] == nil then
-		Printf("StorageLimit: Unknown storage station '%s'. Set max storage slots to %s", station.owningPlaceable:getName(), StorageLimit.maxStoredFillTypesDefault)
-		StorageLimit.knownStorageStations[station.owningPlaceable:getName()] = StorageLimit.maxStoredFillTypesDefault
-	else
-		maxStoredFillTypes = StorageLimit.knownStorageStations[station.owningPlaceable:getName()]
-		if withOutput then
-			dbPrintf("  Already known storage station '%s' with %s storage slots", station.owningPlaceable:getName(), maxStoredFillTypes)
+	local stationIdentifier = StorageLimit:getStationItentifier(station)
+
+
+	if StorageLimit.knownStorageStations[stationIdentifier] == nil then
+		dbPrintf("StorageLimit: New undefined storage station '%s'. Set max storage slots to %s (default)", stationIdentifier, StorageLimit.maxStoredFillTypesDefault)
+		StorageLimit.knownStorageStations[stationIdentifier] = -1
+	else		
+		maxStoredFillTypes = StorageLimit.knownStorageStations[stationIdentifier]
+		if maxStoredFillTypes == -1 then
+			maxStoredFillTypes = StorageLimit.maxStoredFillTypesDefault
+			if withOutput then
+				dbPrintf("StorageLimit: Undefined storage station '%s'. Set max storage slots to %s (default)", stationIdentifier, StorageLimit.maxStoredFillTypesDefault)
+			end
+		else
+			if withOutput then
+				dbPrintf("StorageLimit: Already known storage station '%s' with %s storage slots", stationIdentifier, maxStoredFillTypes)
+			end
 		end
 	end
 
@@ -152,6 +195,10 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
         if farmId == nil or station:hasFarmAccessToStorage(farmId, targetStorage) then
             countTargetStorages = countTargetStorages + 1
 
+			if withOutput then
+				dbPrintf("  Target-Storagess: id=%s | capacity=%s", targetStorage.id, targetStorage.capacity)
+			end
+
 			-- current targetStorage debug output
 			-- if withOutput then
 			-- 	print("")
@@ -160,6 +207,13 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 			-- 	DebugUtil.printTableRecursively(targetStorage,".",0,2)
 			-- 	print("**** End DebugUtil.printTableRecursively() ******************************************************************************************")
 			-- end
+
+--            targetStorage.capacity
+--            .fillLevels
+--            .fillTypes
+--            .isExtension
+--            .unloadingStations
+--            .id
 
 			for fillTypeIndex1, _ in pairs(targetStorage.fillTypes) do
 				local ftName = g_fillTypeManager:getFillTypeByIndex(fillTypeIndex1).name
@@ -174,7 +228,7 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
 		end
 	end
 
-    local maxStoredFillTypesOverAll = maxStoredFillTypes + (countTargetStorages-1)*2
+    local maxStoredFillTypesOverAll = maxStoredFillTypes + (countTargetStorages-1) * StorageLimit.maxStoredFillTypesExtensionDefault
 	local isFilltypeAlreadyInUse = station:getFillLevel(fillTypeIndex, farmId) > 0.1
 
 	local notificationText = "";
@@ -212,6 +266,111 @@ function StorageLimit.unloadingStation_getFreeCapacity(station, superFunc, fillT
     	return 0
 	end
 end
+
+
+-- function StorageLimit:saveSavegame()
+-- 	Printf("StorageLimit:saveSavegame")
+
+-- 	StorageLimit:writeConfig();
+-- end;
+
+
+function StorageLimit:writeConfig()
+	dbPrintf("StorageLimit:writeConfig")
+
+	-- skip on dedicated servers
+	if g_dedicatedServerInfo ~= nil then
+		return
+	end
+	
+	createFolder(StorageLimit.confDirectory);
+
+	local fileName = StorageLimit.confDirectory .. StorageLimit.modName .. ".xml"
+	local key = "StorageLimit";
+	local xmlFile = createXMLFile(key, fileName, key);		
+
+	if xmlFile > 0 then
+		setXMLString(xmlFile, key.."#XMLFileVersion", "1.0");
+
+		local settingKey = string.format("%s.Settings", key)
+		setXMLInt(xmlFile, settingKey..".maxStoredFillTypesDefault", StorageLimit.maxStoredFillTypesDefault)
+		setXMLInt(xmlFile, settingKey..".maxStoredFillTypesExtensionDefault", StorageLimit.maxStoredFillTypesExtensionDefault)
+
+		local i = 0
+		for stationName, maxStoredFillTypes in pairs(StorageLimit.knownStorageStations) do
+			local posKey = string.format("%s.StorageStations.StationName(%d)", key, i)
+			setXMLString(xmlFile, posKey.."#stationName", stationName)
+			setXMLInt(xmlFile, posKey.."#maxStoredFillTypes", maxStoredFillTypes)
+			i = i + 1
+		end
+
+		saveXMLFile(xmlFile)
+		delete(xmlFile)
+	end
+end
+
+
+function StorageLimit:readConfig()
+	dbPrintf("StorageLimit:readConfig")
+
+	-- skip on dedicated servers
+	-- if g_dedicatedServerInfo ~= nil then
+	-- 	return
+	-- end
+
+	local fileName = StorageLimit.confDirectory .. StorageLimit.modName .. ".xml"
+	local key = "StorageLimit";
+	if fileExists(fileName) then
+		-- load existing XML file
+		local xmlFile = loadXMLFile(key, fileName, key)
+
+		local XMLFileVersion = getXMLString(xmlFile, key.."#XMLFileVersion")
+		if XMLFileVersion == "1.0" then
+
+			local settingKey = string.format("%s.Settings", key)
+			StorageLimit.maxStoredFillTypesDefault = Utils.getNoNil(getXMLInt(xmlFile, settingKey..".maxStoredFillTypesDefault"), StorageLimit.maxStoredFillTypesDefault)
+			StorageLimit.maxStoredFillTypesExtensionDefault = Utils.getNoNil(getXMLInt(xmlFile, settingKey..".maxStoredFillTypesExtensionDefault"), StorageLimit.maxStoredFillTypesExtensionDefault)
+
+			local i = 0
+			while true do
+				local posKey = string.format("%s.StorageStations.StationName(%d)", key, i)
+				if hasXMLProperty(xmlFile, posKey) then
+					local stationName = getXMLString(xmlFile, posKey.."#stationName")
+					local maxStoredFillTypes= getXMLInt(xmlFile, posKey.."#maxStoredFillTypes")
+					StorageLimit.knownStorageStations[stationName] = maxStoredFillTypes
+					i = i + 1
+				else
+					break
+				end
+			end
+		end
+	end
+end
+
+
+function StorageLimit:getStationItentifier(station)
+	-- dbPrintf("StorageLimit:getStationItentifier")
+    -- local placeableTitle = station.owningPlaceable:getName()
+
+    local placeableCustomEnvironment = station.owningPlaceable.customEnvironment
+	local baseDirectory = station.owningPlaceable.baseDirectory
+	local configFileName = station.owningPlaceable.configFileName
+	local relativeConfigFileName = configFileName
+	if baseDirectory ~= "" then
+		relativeConfigFileName = string.sub(configFileName, string.len(baseDirectory))
+	end
+	if placeableCustomEnvironment ~= nil then
+		relativeConfigFileName = placeableCustomEnvironment .. relativeConfigFileName
+	end
+    return relativeConfigFileName
+end
+
+-- station.owningPlaceable.baseDirectory
+-- station.owningPlaceable.configFileName
+-- station.owningPlaceable.customEnvironment
+-- C:/Users/Dirk/Documents/My Games/FarmingSimulator2022/pdlc/premiumExpansion/
+-- C:/Users/Dirk/Documents/My Games/FarmingSimulator2022/pdlc/premiumExpansion/placeables/sellingPoints/railroadStorageSilo01/railroadStorageSilo01.xml
+-- pdlc_premiumExpansion
 
 
 -- function StorageLimit:onLoad(savegame)end;
