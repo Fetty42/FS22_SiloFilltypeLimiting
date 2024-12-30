@@ -111,11 +111,14 @@ function StorageLimit:isStationRelevant(station)
 	-- getName=Medium Petrol Tank | typeName=silo | categoryName=DIESELTANKS | isSellingPoint=nil | hasStoragePerFarm=false | ownerFarmId=1 	--> is own relevant StorageStation
 	-- getName=Liquidmanure Tank | typeName=silo | categoryName=SILOS | isSellingPoint=nil | hasStoragePerFarm=false | ownerFarmId=1 			--> is own relevant StorageStation
 
-	if (station.isSellingPoint == nil or station.isSellingPoint == false) and placeable.ownerFarmId == g_currentMission:getFarmId()
-		and (placeable.storeItem.categoryName == "SILOS" or placeable.storeItem.categoryName == "STORAGES") and placeable.typeName == "silo" then
+	if ((station.isSellingPoint == nil or station.isSellingPoint == false) and placeable.ownerFarmId == g_currentMission:getFarmId()) then
+        if ((placeable.storeItem.categoryName == "SILOS" or placeable.storeItem.categoryName == "STORAGES") and placeable.typeName == "silo")
+            or (placeable.typeName == "FS22_HofBergmann.mapSiloSystem")
+            or (placeable.typeName == "FS22_Franconian_Farm.chickenHusbandrySilo") then
 		-- placeable.storeItem.categoryName ~= "ANIMALPENS" and placeable.storeItem.categoryName ~= "PRODUCTIONPOINTS"
 		-- dbPrintf("    --> is own relevant StorageStation")
-		return true
+            return true
+        end
 	end
 	
 	if station.isSellingPoint == nil and placeable.storeItem.categoryName == "PLACEABLEMISC" and station.hasStoragePerFarm then
@@ -365,6 +368,14 @@ function StorageLimit:getStationItentifier(station)
     return relativeConfigFileName
 end
 
+
+function StorageLimit:init()
+	local fileName = StorageLimit.confDirectory .. StorageLimit.modName .. ".xml"
+	if not fileExists(fileName) then
+		StorageLimit:writeConfig()
+	end
+end
+
 -- station.owningPlaceable.baseDirectory
 -- station.owningPlaceable.configFileName
 -- station.owningPlaceable.customEnvironment
@@ -378,4 +389,7 @@ end
 -- function StorageLimit:deleteMap()end;
 -- function StorageLimit:keyEvent(unicode, sym, modifier, isDown)end;
 -- function StorageLimit:mouseEvent(posX, posY, isDown, isUp, button)end;
+
+StorageLimit:init()
+
 
